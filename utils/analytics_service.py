@@ -1,6 +1,7 @@
 from models.analytics_overview import analytics_overview
 from datetime import datetime
 
+
 async def update_analytics(user_id: str, field: str, value: int = 1):
     await analytics_overview.update_one(
         {"userId": user_id},
@@ -8,9 +9,10 @@ async def update_analytics(user_id: str, field: str, value: int = 1):
             "$inc": {f"overview.{field}": value},
             "$set": {"lastUpdated": datetime.utcnow()},
         },
-        upsert=True
+        upsert=True,
     )
-    
+
+
 async def update_sequence_progress(user_id: str, field: str, value: int = 1):
     await analytics_overview.update_one(
         {"userId": user_id},
@@ -18,9 +20,8 @@ async def update_sequence_progress(user_id: str, field: str, value: int = 1):
             "$inc": {f"charts.sequenceProgress.{field}": value},
             "$set": {"lastUpdated": datetime.utcnow()},
         },
-        upsert=True
+        upsert=True,
     )
-
 
 
 async def update_email_volume(user_id: str, count: int = 1):

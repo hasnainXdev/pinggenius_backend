@@ -1,19 +1,33 @@
-from datetime import datetime, timedelta
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-
-MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL)
-db = client["test"]
-sequences = db["sequences"]
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
 
-async def save_sequence(sequence_doc):
-    if not sequence_doc.get("contact_id") or not sequence_doc.get("email_body"):
-        return
-    await sequences.insert_one(sequence_doc)
-    
-async def get_sequences(contact_id):
-    if not contact_id:
-        return "Sequence not found"
-    return await sequences.find({"contact_id": contact_id}).to_list(length=None)
+class Message(BaseModel):
+    """
+    An individual component of an outreach sequence
+    """
+
+    id: Optional[str] = None
+    sequence_id: str  # Reference to the parent OutreachSequence
+    content: str  # The actual text content of the message
+    position: int  # Position in the sequence (1-4: connection_note, dm_1, follow_up_1, follow_up_2)
+    created_at: datetime = datetime.now()
+    updated_at: datetime = datetime.now()
+
+
+class OutreachSequence(BaseModel):
+    """
+    A collection of four messages generated for a specific LinkedIn profile
+    """
+
+    id: Optional[str] = None
+    profile_id: str  # Reference to the associated LinkedInProfile
+    connection_note: str  # The connection request message
+    dm_1: str  # First direct message
+    follow_up_1: str  # First follow-up message
+    follow_up_2: str  # Second follow-up message
+    tone: str  # The tone used for generation (Friendly, Direct, Authority, Casual)
+    created_at: datetime = datetime.now()
+    updated_at: datetime = datetime.now()
+    status: str = "GENERATED"  # Status of the sequence (GENERATED, REFINING, REFINED)

@@ -1,0 +1,287 @@
+openapi: 3.0.0
+info:
+  title: LinkedIn Outreach Generation API
+  description: API for generating personalized LinkedIn outreach sequences
+  version: 1.0.0
+servers:
+  - url: https://api.pinggenius.com/v1
+    description: Production server
+  - url: https://staging-api.pinggenius.com/v1
+    description: Staging server
+
+paths:
+  /profile/analyze:
+    post:
+      summary: Analyze a LinkedIn profile
+      description: Extract context from a LinkedIn profile for outreach generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: The LinkedIn profile URL to analyze
+                  example: "https://www.linkedin.com/in/example-profile"
+      responses:
+        '200':
+          description: Profile analyzed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileAnalysisResponse'
+        '400':
+          description: Invalid LinkedIn profile URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: LinkedIn profile not found or inaccessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  
+  /outreach/generate:
+    post:
+      summary: Generate outreach sequence
+      description: Generate a complete LinkedIn outreach sequence based on profile context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profile_id
+              properties:
+                profile_id:
+                  type: string
+                  description: The ID of the analyzed profile
+                  example: "507f1f77bcf86cd799439011"
+                tone:
+                  type: string
+                  enum: [Friendly, Direct, Authority, Casual]
+                  description: The tone for the generated messages
+                  default: Friendly
+      responses:
+        '200':
+          description: Outreach sequence generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutreachSequenceResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /outreach/refine:
+    post:
+      summary: Refine outreach sequence
+      description: Regenerate or tweak a message with feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sequence_id
+              properties:
+                sequence_id:
+                  type: string
+                  description: The ID of the outreach sequence to refine
+                  example: "507f1f77bcf86cd799439011"
+                message_position:
+                  type: integer
+                  minimum: 1
+                  maximum: 4
+                  description: Position of the message to refine (1-4: connection_note, dm_1, follow_up_1, follow_up_2)
+                feedback:
+                  type: string
+                  description: User feedback to incorporate in refinement
+                  example: "Make the message more professional"
+                tone:
+                  type: string
+                  enum: [Friendly, Direct, Authority, Casual]
+                  description: The tone for the refined message
+      responses:
+        '200':
+          description: Outreach sequence refined successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutreachSequenceResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Sequence not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sequences/{id}:
+    get:
+      summary: Get outreach sequence
+      description: Retrieve a generated outreach sequence by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: The ID of the outreach sequence
+      responses:
+        '200':
+          description: Outreach sequence retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutreachSequenceResponse'
+        '404':
+          description: Sequence not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ProfileAnalysisResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the profile record
+        url:
+          type: string
+          format: uri
+          description: The original LinkedIn profile URL
+        role:
+          type: string
+          description: Current role of the profile owner
+        company:
+          type: string
+          description: Current company of the profile owner
+        industry:
+          type: string
+          description: Industry/ICP signals from the profile
+        recent_activity:
+          type: string
+          description: Recent activity information (optional)
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was analyzed
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was last updated
+      required:
+        - id
+        - url
+        - role
+        - company
+        - industry
+        - created_at
+        - updated_at
+
+    OutreachSequenceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the sequence
+        profile_id:
+          type: string
+          description: Reference to the associated LinkedInProfile
+        connection_note:
+          type: string
+          description: The connection request message
+        dm_1:
+          type: string
+          description: First direct message
+        follow_up_1:
+          type: string
+          description: First follow-up message
+        follow_up_2:
+          type: string
+          description: Second follow-up message
+        tone:
+          type: string
+          description: The tone used for generation
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the sequence was generated
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the sequence was last updated
+      required:
+        - id
+        - profile_id
+        - connection_note
+        - dm_1
+        - follow_up_1
+        - follow_up_2
+        - tone
+        - created_at
+        - updated_at
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+      required:
+        - error
+        - code
