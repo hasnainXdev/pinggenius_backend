@@ -1,14 +1,80 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
+*.pyc
+*.pyo
+*.pyd
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Virtual environments
 .venv
+venv/
+env/
+ENV/
+.ENV
+env.bak/
+venv.bak/
+
+# Environment variables
 .env
+.venv/
+.env.local
+.env.dev
+.env.prod
+.env.staging
+.env.test
+.env.testing
+.env.development
+.env.production
+.env.secrets
+
+# FastAPI/uvicorn
+uvicorn.log
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Security
 credentials.json
 token.json
 vps_commands.txt
+.qwen
+.specify
+
+# OS
+.DS_Store
+Thumbs.db

@@ -72,4 +72,3 @@ async def try_consume_quota(user_id: str, resource: str, amount: int = 1) -> boo
     )
 
     return res is not None
-
