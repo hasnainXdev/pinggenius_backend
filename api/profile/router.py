@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from services.profile_scraper import ProfileService
 from services.context_extractor import ContextExtractor
 from models.profile import LinkedInProfile
-from database.mongo import mongodb
+from database.mongo import get_db
 from utils.retry import retry_with_backoff
 from typing import Optional
 import logging
@@ -15,7 +15,12 @@ context_extractor = ContextExtractor()
 
 class ProfileAnalysisRequest(BaseModel):
     url: str
-
+    role: str
+    company: str
+    industry: str
+    pain_point: Optional[str] = None
+    recent_signal: Optional[str] = None
+    tone: str
 
 class ProfileAnalysisResponse(BaseModel):
     id: Optional[str] = None
@@ -28,55 +33,35 @@ class ProfileAnalysisResponse(BaseModel):
 
 @router.post("/analyze", response_model=ProfileAnalysisResponse)
 async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
-    """
-    Analyze a LinkedIn profile and extract context for message generation
-    """
     try:
-        # Validate the profile URL
-        if not profile_service.validate_profile_url(request.url):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Invalid LinkedIn profile URL",
-                    "message": "The provided URL is not a valid LinkedIn profile URL",
-                    "actionable_alternative": "Please ensure the URL follows the format: https://www.linkedin.com/in/username",
-                },
-            )
+        # Build profile directly from user input
+        profile = LinkedInProfile(
+            url=request.url,
+            role=request.role,
+            company=request.company,
+            industry=request.industry or "Unknown",
+            recent_activity=request.recent_signal,
+        )
 
-        # Analyze the profile
-        profile: LinkedInProfile = await profile_service.analyze_profile(request.url)
+        # Extract message context
+        context = context_extractor.extract_context(
+            profile=profile
+        )
 
-        if (
-            not profile
-            or profile.role == "Unknown"
-            and profile.company == "Unknown"
-            and profile.industry == "Unknown"
-        ):
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "error": "Could not analyze the LinkedIn profile",
-                    "message": "The profile may be private, inaccessible, or the service is temporarily unavailable",
-                    "actionable_alternative": "Please verify the profile is public and accessible, or try again later",
-                },
-            )
-
-        # Extract context for future message generation
-        context = context_extractor.extract_context(profile)
-
-        # Validate the extracted context
         if not context_extractor.validate_context(context):
-            logging.warning(
-                f"Profile {profile.id} has insufficient information for quality message generation"
-            )
+            logging.warning("Insufficient context but proceeding")
 
-        # Store the profile in the database
-        db = mongodb.get_database()
-        result = db.profiles.insert_one(profile.dict())
+        db = get_db()
+        result = db.profiles.insert_one({
+            **profile.dict(),
+            "tone": request.tone,
+            "pain_point": request.pain_point or "",
+            "context": context,
+        })
+
         profile.id = str(result.inserted_id)
 
-        # Prepare the response
-        response = ProfileAnalysisResponse(
+        return ProfileAnalysisResponse(
             id=profile.id,
             url=profile.url,
             role=profile.role,
@@ -85,18 +70,6 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
             recent_activity=profile.recent_activity,
         )
 
-        return response
-
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
     except Exception as e:
-        logging.error(f"Error analyzing profile {request.url}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "Internal server error",
-                "message": "An unexpected error occurred while analyzing the profile",
-                "actionable_alternative": "Please try again later or contact support if the issue persists",
-            },
-        )
+        logging.error(f"Analyze failed: {e}")
+        raise HTTPException(status_code=500, detail="Generation failed")

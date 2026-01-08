@@ -11,7 +11,7 @@ from agents import (
 from openai import AsyncOpenAI
 from config.settings import settings
 from utils.retry import retry_with_backoff
-from database.mongo import mongodb
+from database.mongo import get_db
 from enum import Enum
 import logging
 import json
@@ -64,47 +64,111 @@ class SequenceGeneratorService:
         self, profile: LinkedInProfile, tone: Tone = Tone.FRIENDLY
     ) -> OutreachSequence:
         """
-        Generate a complete LinkedIn outreach sequence based on profile context using OpenAI Agents
+        Generate a pain-first LinkedIn outreach sequence.
+        Focus: relevance, curiosity, and human tone.
         """
+
         try:
-            # Create an agent for generating outreach sequences
             agent = Agent(
-                name="LinkedIn Outreach Specialist",
-                instructions=f"Generate a complete LinkedIn outreach sequence with a {tone.value} tone. You are an expert at crafting personalized LinkedIn outreach messages that are effective and appropriate for the platform.",
+                name="LinkedIn Outreach Strategist",
+                instructions=(
+                    "You are an expert at writing LinkedIn DMs that get replies.\n"
+                    "Your job is NOT to praise.\n"
+                    "Your job is to surface a relevant pain or tension and start a conversation.\n\n"
+                    "Rules:\n"
+                    "- Do NOT sound salesy\n"
+                    "- Do NOT over-compliment\n"
+                    "- Avoid buzzwords\n"
+                    "- Keep messages human and short\n"
+                    "- Sound like a real person who understands the reader\n"
+                    "- force single line\n"
+                    "- remove leading/trailing quotes\n"
+                    f"- Tone: {tone.value}\n"
+                ),
             )
 
-            # Prepare context for the agent
+            if (profile.role is None) or (profile.company is None) or (profile.industry is None):
+                raise ValueError(
+                    "Profile must have role, company, and industry for generation."
+                )
+
             context = self._prepare_context_for_generation(profile, tone)
 
-            # Define descriptions for each message in the sequence
-            descriptions = [
-                f"Generate a connection request message based on: {json.dumps(context)}. Tone: {self.tone_instructions[tone]}. Keep it under 200 characters.",
-                f"Generate the first direct message based on: {json.dumps(context)}. Tone: {self.tone_instructions[tone]}. Keep it under 200 characters.",
-                f"Generate the first follow-up message based on: {json.dumps(context)}. Tone: {self.tone_instructions[tone]}. Keep it under 200 characters.",
-                f"Generate the second follow-up message based on: {json.dumps(context)}. Tone: {self.tone_instructions[tone]}. Keep it under 200 characters.",
+            prompts = [
+                {
+                    "role": "Connection Note",
+                    "instruction": (
+                        "Write a LinkedIn connection request.\n"
+                        "- One sentence\n"
+                        "- Light curiosity\n"
+                        "- NO pitch\n"
+                        "- Mention role or work only once\n"
+                        "- Under 180 characters"
+                    ),
+                },
+                {
+                    "role": "DM 1",
+                    "instruction": (
+                        "Write the first DM after connecting.\n"
+                        "- Acknowledge a likely pain or challenge related to their role\n"
+                        "- Ask ONE thoughtful question\n"
+                        "- No selling, no links\n"
+                        "- Under 200 characters"
+                    ),
+                },
+                {
+                    "role": "Follow-up 1",
+                    "instruction": (
+                        "Write the first follow-up.\n"
+                        "- Polite nudge\n"
+                        "- Reframe the pain or curiosity\n"
+                        "- Assume they are busy, not ignoring\n"
+                        "- Under 180 characters"
+                    ),
+                },
+                {
+                    "role": "Follow-up 2",
+                    "instruction": (
+                        "Write the final follow-up.\n"
+                        "- Graceful exit\n"
+                        "- No pressure\n"
+                        "- Leave door open for later\n"
+                        "- Under 180 characters"
+                    ),
+                },
             ]
 
-            # Execute the descriptions using the agent
-            results = []
-            for desc in descriptions:
-                result = await Runner.run(agent, input=desc, run_config=config)
-                message_content = result.final_output.strip()
-                # Ensure the message is under 200 characters
-                if len(message_content) > 200:
-                    message_content = message_content[:197] + "..."
-                results.append(message_content)
+            outputs: List[str] = []
 
-            # Create the outreach sequence
-            sequence = OutreachSequence(
+            for step in prompts:
+                prompt = f"""
+            Context:
+                {json.dumps(context)}
+
+                Task: {step['role']}
+                Instructions:
+                {step['instruction']}
+
+            Write the message now.
+            """
+
+                result = await Runner.run(agent, input=prompt, run_config=config)
+                text = result.final_output.strip()
+
+                if len(text) > 200:
+                    text = text[:197] + "..."
+
+                outputs.append(text)
+
+            return OutreachSequence(
                 profile_id=profile.id or "",
-                connection_note=results[0],
-                dm_1=results[1],
-                follow_up_1=results[2],
-                follow_up_2=results[3],
+                connection_note=outputs[0],
+                dm_1=outputs[1],
+                follow_up_1=outputs[2],
+                follow_up_2=outputs[3],
                 tone=tone.value,
             )
 
-            return sequence
         except Exception as e:
             logging.error(
                 f"Error generating outreach sequence for profile {profile.id}: {e}"
@@ -143,7 +207,7 @@ class SequenceGeneratorService:
             # Note: In a real implementation, you would fetch the profile from the database
             # For now, we'll use placeholder data
 
-            db = mongodb.get_database()
+            db = get_db()
             profile_data = db.profiles.find_one({"_id": sequence.profile_id})
             profile = LinkedInProfile(
                 id=sequence.profile_id,

@@ -7,7 +7,7 @@ import os
 # Add the project root to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.mongo import mongodb
+from database.mongo import get_db
 from pymongo import ASCENDING
 import logging
 
@@ -17,7 +17,7 @@ def create_indexes():
     Create indexes for MongoDB collections as specified in the data model
     """
     try:
-        db = mongodb.get_database()
+        db = get_db()
 
         # LinkedInProfile indexes
         # Index on URL for efficient lookup
