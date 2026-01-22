@@ -4,11 +4,18 @@ from typing import Optional
 from services.sequence_generator import SequenceGeneratorService, Tone
 from models.sequence import OutreachSequence
 from models.profile import LinkedInProfile
-from database.mongo import mongodb
+from database.mongo import get_db
+from bson import ObjectId
 import logging
+
+# Import validation components
+from services.profile_validation import ProfileValidationService
+from utils.validation import create_standard_error_response
+from utils.logging import log_validation_failure
 
 router = APIRouter()
 sequence_service = SequenceGeneratorService()
+profile_validation_service = ProfileValidationService()
 
 
 class GenerateRequest(BaseModel):
@@ -42,8 +49,8 @@ async def generate_outreach_sequence(request: GenerateRequest):
     """
     try:
         # Fetch the profile from the database
-        db = mongodb.get_database()
-        profile_data = db.profiles.find_one({"_id": request.profile_id})
+        db = get_db()
+        profile_data = db.profiles.find_one({"_id": ObjectId(request.profile_id)})
 
         if not profile_data:
             raise HTTPException(
@@ -56,14 +63,49 @@ async def generate_outreach_sequence(request: GenerateRequest):
             )
 
         # Create a LinkedInProfile object from the database data
+        profile_data["id"] = str(profile_data["_id"])
+        profile_data.pop("_id")
+
         profile = LinkedInProfile(**profile_data)
+
+        # Validate the profile for outreach generation
+        profile_validation_result = (
+            profile_validation_service.validate_profile_completeness(profile.dict())
+        )
+
+        if not profile_validation_result.is_valid:
+            # Log the validation failure
+            log_validation_failure(profile.dict(), profile_validation_result.errors)
+
+            # Create enhanced error response with actionable alternatives
+            error_response = profile_validation_service.enhance_error_message(
+                profile_validation_result, profile
+            )
+
+            raise HTTPException(status_code=422, detail=error_response)
 
         # Generate the outreach sequence
         sequence = await sequence_service.generate_sequence(profile, request.tone)
 
         # Store the sequence in the database
-        result = db.sequences.insert_one(sequence.dict())
+        sequence_dict = sequence.dict()
+        result = db.sequences.insert_one(
+            {
+                **sequence_dict,
+                "profile_snapshot": {
+                    "role": getattr(profile, 'role', profile_data.get('role', '')),
+                    "company": getattr(profile, 'company', profile_data.get('company', '')),
+                    "industry": getattr(profile, 'industry', profile_data.get('industry', '')),
+                },
+            }
+        )
         sequence.id = str(result.inserted_id)
+
+        # Persist the sequence context if it's valuable
+        if sequence_dict.get("sequence_context"):
+            sequence_service.persist_sequence_context(
+                sequence.id, {"_id": result.inserted_id, **sequence_dict}
+            )
 
         # Prepare the response
         response = SequenceResponse(
@@ -102,8 +144,8 @@ async def refine_outreach_sequence(request: RefineRequest):
     """
     try:
         # Fetch the sequence from the database
-        db = mongodb.get_database()
-        sequence_data = db.sequences.find_one({"_id": request.sequence_id})
+        db = get_db()
+        sequence_data = db.sequences.find_one({"_id": ObjectId(request.sequence_id)})
 
         if not sequence_data:
             raise HTTPException(
@@ -172,9 +214,11 @@ async def refine_outreach_sequence(request: RefineRequest):
             follow_up_1=refined_sequence.follow_up_1,
             follow_up_2=refined_sequence.follow_up_2,
             tone=refined_sequence.tone,
-            created_at=sequence_data.get("created_at").isoformat()
-            if sequence_data.get("created_at")
-            else None,
+            created_at=(
+                sequence_data.get("created_at").isoformat()
+                if sequence_data.get("created_at")
+                else None
+            ),
             updated_at=refined_sequence.updated_at.isoformat(),
         )
 
@@ -201,9 +245,11 @@ async def get_outreach_sequence(sequence_id: str):
     Retrieve an existing outreach sequence by ID
     """
     try:
+        # TODO: enforce ownership after auth is added
+
         # Fetch the sequence from the database
-        db = mongodb.get_database()
-        sequence_data = db.sequences.find_one({"_id": sequence_id})
+        db = get_db()
+        sequence_data = db.sequences.find_one({"_id": ObjectId(sequence_id)})
 
         if not sequence_data:
             raise HTTPException(
@@ -219,12 +265,16 @@ async def get_outreach_sequence(sequence_id: str):
             follow_up_1=sequence_data["follow_up_1"],
             follow_up_2=sequence_data["follow_up_2"],
             tone=sequence_data["tone"],
-            created_at=sequence_data.get("created_at").isoformat()
-            if sequence_data.get("created_at")
-            else None,
-            updated_at=sequence_data.get("updated_at").isoformat()
-            if sequence_data.get("updated_at")
-            else None,
+            created_at=(
+                sequence_data.get("created_at").isoformat()
+                if sequence_data.get("created_at")
+                else None
+            ),
+            updated_at=(
+                sequence_data.get("updated_at").isoformat()
+                if sequence_data.get("updated_at")
+                else None
+            ),
         )
 
         return response
