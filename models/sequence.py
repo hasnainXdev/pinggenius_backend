@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -16,6 +16,19 @@ class Message(BaseModel):
     updated_at: datetime = datetime.now()
 
 
+class SequenceContext(BaseModel):
+    """
+    Information about previous messages in a sequence that informs the generation of subsequent messages,
+    stored temporarily during generation with option to persist valuable sequences permanently.
+    """
+
+    sequence_id: Optional[str] = None
+    previous_messages: List[Dict[str, Any]] = []  # List of previous messages in the sequence
+    context_summary: str = ""  # Summary of the conversation context
+    tone_consistency_log: List[Dict[str, Any]] = []  # Log of tone validation results
+    temporary_storage: bool = True  # Whether this context is in temporary storage
+
+
 class OutreachSequence(BaseModel):
     """
     A collection of four messages generated for a specific LinkedIn profile
@@ -28,6 +41,8 @@ class OutreachSequence(BaseModel):
     follow_up_1: str  # First follow-up message
     follow_up_2: str  # Second follow-up message
     tone: str  # The tone used for generation (Friendly, Direct, Authority, Casual)
+    pain_point_used: Optional[str] = None  # Pain point that was incorporated
+    sequence_context: Optional[Dict[str, Any]] = None  # Context maintained between messages
     created_at: datetime = datetime.now()
     updated_at: datetime = datetime.now()
-    status: str = "GENERATED"  # Status of the sequence (GENERATED, REFINING, REFINED)
+    status: str = "GENERATED"  # Status of the sequence (GENERATED, REFINING, REFINED, ARCHIVED)

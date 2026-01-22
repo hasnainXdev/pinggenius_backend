@@ -8,8 +8,14 @@ from database.mongo import get_db
 from bson import ObjectId
 import logging
 
+# Import validation components
+from services.profile_validation import ProfileValidationService
+from utils.validation import create_standard_error_response
+from utils.logging import log_validation_failure
+
 router = APIRouter()
 sequence_service = SequenceGeneratorService()
+profile_validation_service = ProfileValidationService()
 
 
 class GenerateRequest(BaseModel):
@@ -62,21 +68,44 @@ async def generate_outreach_sequence(request: GenerateRequest):
 
         profile = LinkedInProfile(**profile_data)
 
+        # Validate the profile for outreach generation
+        profile_validation_result = (
+            profile_validation_service.validate_profile_completeness(profile.dict())
+        )
+
+        if not profile_validation_result.is_valid:
+            # Log the validation failure
+            log_validation_failure(profile.dict(), profile_validation_result.errors)
+
+            # Create enhanced error response with actionable alternatives
+            error_response = profile_validation_service.enhance_error_message(
+                profile_validation_result, profile
+            )
+
+            raise HTTPException(status_code=422, detail=error_response)
+
         # Generate the outreach sequence
         sequence = await sequence_service.generate_sequence(profile, request.tone)
 
         # Store the sequence in the database
+        sequence_dict = sequence.dict()
         result = db.sequences.insert_one(
             {
-                **sequence.dict(),
+                **sequence_dict,
                 "profile_snapshot": {
-                    "role": profile.role,
-                    "company": profile.company,
-                    "industry": profile.industry,
+                    "role": getattr(profile, 'role', profile_data.get('role', '')),
+                    "company": getattr(profile, 'company', profile_data.get('company', '')),
+                    "industry": getattr(profile, 'industry', profile_data.get('industry', '')),
                 },
             }
         )
         sequence.id = str(result.inserted_id)
+
+        # Persist the sequence context if it's valuable
+        if sequence_dict.get("sequence_context"):
+            sequence_service.persist_sequence_context(
+                sequence.id, {"_id": result.inserted_id, **sequence_dict}
+            )
 
         # Prepare the response
         response = SequenceResponse(

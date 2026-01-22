@@ -1,0 +1,383 @@
+openapi: 3.0.3
+info:
+  title: PingGenius Enhanced Profile Analysis and Outreach Generation API
+  description: API for enhanced LinkedIn profile analysis with validation guards and improved outreach generation
+  version: 1.0.0
+paths:
+  /profile/analyze:
+    post:
+      summary: Analyze a LinkedIn profile with enhanced validation
+      description: Analyzes a LinkedIn profile and extracts context, with validation guards to prevent AI hallucination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileAnalysisRequest'
+      responses:
+        '200':
+          description: Profile analyzed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileAnalysisResponse'
+        '400':
+          description: Profile validation failed - insufficient context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-code-samples:
+        - lang: Python
+          source: |
+            import requests
+            
+            url = "http://localhost:8000/profile/analyze"
+            payload = {
+              "url": "https://www.linkedin.com/in/example-profile",
+              "role": "Software Engineer",
+              "company": "Tech Corp",
+              "industry": "Software",
+              "tone": "FRIENDLY"
+            }
+            
+            response = requests.post(url, json=payload)
+            print(response.json())
+
+  /outreach/generate:
+    post:
+      summary: Generate outreach sequence with enhanced validation
+      description: Generates a complete outreach sequence based on profile context with tone validation and sequence cohesion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+      responses:
+        '200':
+          description: Outreach sequence generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundResponse'
+        '429':
+          description: Request timeout due to processing limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeoutResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-code-samples:
+        - lang: Python
+          source: |
+            import requests
+            
+            url = "http://localhost:8000/outreach/generate"
+            payload = {
+              "profile_id": "507f1f77bcf86cd799439011",
+              "tone": "FRIENDLY"
+            }
+            
+            response = requests.post(url, json=payload)
+            print(response.json())
+
+  /outreach/refine:
+    post:
+      summary: Refine specific message in sequence with tone validation
+      description: Refines a specific message in an existing sequence with tone consistency validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefineRequest'
+      responses:
+        '200':
+          description: Sequence refined successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Sequence or profile not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /outreach/{sequence_id}:
+    get:
+      summary: Retrieve an existing outreach sequence
+      description: Retrieves an existing outreach sequence by ID
+      parameters:
+        - name: sequence_id
+          in: path
+          required: true
+          description: ID of the sequence to retrieve
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sequence retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '404':
+          description: Sequence not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ProfileAnalysisRequest:
+      type: object
+      required:
+        - url
+        - role
+        - tone
+      properties:
+        url:
+          type: string
+          description: LinkedIn profile URL
+          example: "https://www.linkedin.com/in/example-profile"
+        role:
+          type: string
+          description: Professional role/title (required for validation)
+          example: "Software Engineer"
+        company:
+          type: string
+          description: Company name (either company or industry required)
+          example: "Tech Corp"
+        industry:
+          type: string
+          description: Industry (either company or industry required)
+          example: "Software"
+        pain_point:
+          type: string
+          description: Specific pain point to address (optional, will be inferred if not provided)
+          example: "Scaling team productivity"
+        recent_signal:
+          type: string
+          description: Recent activity or signal from profile
+          example: "Posted about new project launch"
+        tone:
+          type: string
+          description: Desired tone for outreach
+          enum: [FRIENDLY, DIRECT, AUTHORITY, CASUAL]
+          example: "FRIENDLY"
+
+    ProfileAnalysisResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the profile in the database
+          example: "507f1f77bcf86cd799439011"
+        url:
+          type: string
+          description: LinkedIn profile URL
+          example: "https://www.linkedin.com/in/example-profile"
+        role:
+          type: string
+          description: Professional role/title
+          example: "Software Engineer"
+        company:
+          type: string
+          description: Company name
+          example: "Tech Corp"
+        industry:
+          type: string
+          description: Industry
+          example: "Software"
+        recent_activity:
+          type: string
+          description: Recent profile activity/signals
+          example: "Posted about new project launch"
+        pain_point_inferred:
+          type: string
+          description: Pain point inferred from role/industry
+          example: "Scaling team productivity"
+
+    GenerateRequest:
+      type: object
+      required:
+        - profile_id
+      properties:
+        profile_id:
+          type: string
+          description: ID of the profile to generate outreach for
+          example: "507f1f77bcf86cd799439011"
+        tone:
+          type: string
+          description: Desired tone for outreach (defaults to FRIENDLY)
+          enum: [FRIENDLY, DIRECT, AUTHORITY, CASUAL]
+          example: "FRIENDLY"
+
+    RefineRequest:
+      type: object
+      required:
+        - sequence_id
+        - message_position
+      properties:
+        sequence_id:
+          type: string
+          description: ID of the sequence to refine
+          example: "507f1f77bcf86cd799439012"
+        message_position:
+          type: integer
+          description: Position of the message to refine (1=connection_note, 2=dm_1, 3=follow_up_1, 4=follow_up_2)
+          minimum: 1
+          maximum: 4
+          example: 2
+        feedback:
+          type: string
+          description: Feedback to guide the refinement
+          example: "Make it more professional"
+        tone:
+          type: string
+          description: Override tone for this specific message (optional)
+          enum: [FRIENDLY, DIRECT, AUTHORITY, CASUAL]
+          example: "AUTHORITY"
+
+    SequenceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the sequence
+          example: "507f1f77bcf86cd799439012"
+        profile_id:
+          type: string
+          description: ID of the associated profile
+          example: "507f1f77bcf86cd799439011"
+        connection_note:
+          type: string
+          description: Connection request message
+          example: "Hi, I noticed your recent post about the new project launch..."
+        dm_1:
+          type: string
+          description: First direct message
+          example: "Following up on our connection. I saw you're working on scaling challenges..."
+        follow_up_1:
+          type: string
+          description: First follow-up message
+          example: "Did you get a chance to review the resources I shared?"
+        follow_up_2:
+          type: string
+          description: Second follow-up message
+          example: "Just checking in to see if there's interest in discussing solutions."
+        tone:
+          type: string
+          description: Tone used for the sequence
+          example: "FRIENDLY"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of sequence creation
+          example: "2023-10-20T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp of last update
+          example: "2023-10-20T10:05:00Z"
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Validation failed"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Profile missing required fields: role is required, and either company or industry is required"
+        actionable_alternative:
+          type: string
+          description: Suggestion for how to resolve the error
+          example: "Please provide role, and either company or industry information"
+
+    NotFoundResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Detailed error message
+          example: "Profile with ID 507f1f77bcf86cd799439011 does not exist in the system"
+
+    TimeoutResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Request timeout"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Processing timed out after 8 seconds"
+        actionable_alternative:
+          type: string
+          description: Suggestion for how to resolve the error
+          example: "Please try again later or simplify the request"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Internal server error"
+        message:
+          type: string
+          description: Detailed error message
+          example: "An unexpected error occurred while processing your request"
+        actionable_alternative:
+          type: string
+          description: Suggestion for how to resolve the error
+          example: "Please try again later or contact support if the issue persists"
