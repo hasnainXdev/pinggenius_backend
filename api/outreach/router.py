@@ -93,9 +93,13 @@ async def generate_outreach_sequence(request: GenerateRequest):
             {
                 **sequence_dict,
                 "profile_snapshot": {
-                    "role": getattr(profile, 'role', profile_data.get('role', '')),
-                    "company": getattr(profile, 'company', profile_data.get('company', '')),
-                    "industry": getattr(profile, 'industry', profile_data.get('industry', '')),
+                    "role": getattr(profile, "role", profile_data.get("role", "")),
+                    "company": getattr(
+                        profile, "company", profile_data.get("company", "")
+                    ),
+                    "industry": getattr(
+                        profile, "industry", profile_data.get("industry", "")
+                    ),
                 },
             }
         )
