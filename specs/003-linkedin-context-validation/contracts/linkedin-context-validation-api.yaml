@@ -1,0 +1,161 @@
+openapi: 3.0.0
+info:
+  title: LinkedIn Context Validation API
+  version: 1.0.0
+  description: API for validating LinkedIn profile context before outreach generation
+
+paths:
+  /linkedin/context/validate:
+    post:
+      summary: Validate LinkedIn profile context
+      description: Validates if a LinkedIn profile has sufficient context for outreach generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkedInProfile'
+      responses:
+        '200':
+          description: Context validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextValidationResult'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /linkedin/context/analyze:
+    post:
+      summary: Analyze LinkedIn profile and select anchor
+      description: Analyzes a LinkedIn profile and selects a single anchor point for outreach
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkedInProfile'
+      responses:
+        '200':
+          description: Analysis result with selected anchor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    LinkedInProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the profile
+        role:
+          type: string
+          description: Professional role/title of the person
+        title:
+          type: string
+          description: Job title of the person
+        company:
+          type: string
+          description: Company where the person works
+        industry:
+          type: string
+          description: Industry of the person's company
+        pain_points:
+          type: array
+          items:
+            type: string
+          description: Identified pain points from the profile
+        recent_activity:
+          type: array
+          items:
+            type: string
+          description: Recent activities/posts by the person
+        profile_url:
+          type: string
+          description: URL to the LinkedIn profile
+      required:
+        - profile_url
+      oneOf:
+        - required: ["role", "company"]
+        - required: ["role", "industry"]
+        - required: ["title", "company"]
+        - required: ["title", "industry"]
+
+    ContextValidationResult:
+      type: object
+      properties:
+        profile_id:
+          type: string
+          description: Reference to the LinkedInProfile
+        context_depth_score:
+          type: integer
+          description: Calculated context depth score (0-4)
+          minimum: 0
+          maximum: 4
+        validation_passed:
+          type: boolean
+          description: Whether the profile passed context validation
+        missing_fields:
+          type: array
+          items:
+            type: string
+          description: List of required fields that are missing
+        anchor_point:
+          type: string
+          description: Selected anchor point for outreach
+        generation_mode:
+          type: string
+          description: Mode selected based on context depth
+          enum: [Precision, Safe Personalization, Exploratory]
+        validation_timestamp:
+          type: string
+          format: date-time
+          description: When the validation was performed
+
+    AnalysisResult:
+      type: object
+      properties:
+        profile_id:
+          type: string
+          description: Reference to the LinkedInProfile
+        selected_anchor:
+          type: string
+          description: The anchor point selected for outreach
+        anchor_type:
+          type: string
+          description: Type of anchor selected (pain_point, recent_activity, role_based)
+        context_depth_score:
+          type: integer
+          description: Calculated context depth score (0-4)
+          minimum: 0
+          maximum: 4
+        generation_mode:
+          type: string
+          description: Mode selected based on context depth
+          enum: [Precision, Safe Personalization, Exploratory]
+        analysis_details:
+          type: object
+          description: Additional details about the analysis
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code

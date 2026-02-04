@@ -208,3 +208,10 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Python 3.11 (as specified in constitution) + FastAPI, MongoDB, Pydantic, python-dotenv (as specified in constitution) (003-linkedin-context-validation)
+- MongoDB for storing LinkedIn profiles, context validation results, and outreach sequences (as specified in constitution) (003-linkedin-context-validation)
+
+## Recent Changes
+- 003-linkedin-context-validation: Added Python 3.11 (as specified in constitution) + FastAPI, MongoDB, Pydantic, python-dotenv (as specified in constitution)
