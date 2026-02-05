@@ -8,7 +8,6 @@ pytest-asyncio==0.21.1
 httpx==0.25.2
 pydantic
 openai-agents==0.0.5
-apify-client==1.7.0
 black==23.10.1
 flake8==6.0.0
 mypy==1.7.1

@@ -25,21 +25,28 @@ from utils.timeout_manager import llm_timeout_manager
 
 set_tracing_disabled(True)
 
-gemini_client = AsyncOpenAI(
-    api_key=settings.gemini_api_key,
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-)
+# Initialize clients only if API keys are available
+gemini_client = None
+model = None
+config = None
 
-model = OpenAIChatCompletionsModel(
-    model="models/gemini-2.5-flash",
-    openai_client=gemini_client,
-)
+if settings.gemini_api_key:
+    gemini_client = AsyncOpenAI(
+        api_key=settings.gemini_api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
 
+    model = OpenAIChatCompletionsModel(
+        model="models/gemini-2.5-flash",
+        openai_client=gemini_client,
+    )
 
-config = RunConfig(
-    model=model,
-    model_provider=gemini_client,
-)
+    config = RunConfig(
+        model=model,
+        model_provider=gemini_client,
+    )
+else:
+    logging.warning("Gemini API key not configured. Using fallback responses.")
 
 
 class Tone(str, Enum):
@@ -124,158 +131,169 @@ class SequenceGeneratorService:
         """
 
         try:
-            # Create a unique key for the agent configuration based on tone
-            agent_key = f"outreach_strategist_{tone.value.lower()}"
-
-            # Check if we have a cached agent for this configuration
-            if agent_key not in self.agent_cache:
-                agent = Agent(
-                    name="LinkedIn Outreach Strategist",
-                    instructions=(
-                        "You are an expert at writing LinkedIn DMs that get replies.\n"
-                        "Your job is NOT to praise.\n"
-                        "Your job is to surface a relevant pain or tension and start a conversation.\n\n"
-                        "Rules:\n"
-                        "- Do NOT sound salesy\n"
-                        "- Do NOT over-compliment\n"
-                        "- Avoid buzzwords\n"
-                        "- Keep messages human and short\n"
-                        "- Sound like a real person who understands the reader\n"
-                        "- force single line\n"
-                        "- remove leading/trailing quotes\n"
-                        f"- Tone: {tone.value}\n"
-                        "- Generate ALL messages in a single response in the specified format\n"
-                    ),
-                )
-                # Cache the agent for reuse (with a reasonable size limit)
-                if len(self.agent_cache) < 10:  # Limit cache size
-                    self.agent_cache[agent_key] = agent
-            else:
-                agent = self.agent_cache[agent_key]
-
-            # Handle both object attributes and dictionary keys
-            profile_role = getattr(profile, 'role', None) or (profile.get('role') if isinstance(profile, dict) else None)
-            profile_company = getattr(profile, 'company', None) or (profile.get('company') if isinstance(profile, dict) else None)
-            profile_industry = getattr(profile, 'industry', None) or (profile.get('industry') if isinstance(profile, dict) else None)
-
-            if (
-                (profile_role is None)
-                or (profile_company is None)
-                or (profile_industry is None)
-            ):
-                raise ValueError(
-                    "Profile must have role, company, and industry for generation."
-                )
-
-            context = self._prepare_context_for_generation(profile, tone)
-
-            # Create a temporary sequence context
-            sequence_id = f"temp_{profile.id or ''}_{int(time.time())}"
-            sequence_context = SequenceContext(
-                sequence_id=sequence_id,
-                previous_messages=[],
-                context_summary="",
-                tone_consistency_log=[],
-                temporary_storage=True
-            )
-
-            # Customize instructions based on whether we have a specific pain point
-            dm1_instruction = (
-                "Write the first DM after connecting.\n"
-                "- Acknowledge a likely pain or challenge related to their role\n"
-                "- Ask ONE thoughtful question\n"
-                "- No selling, no links\n"
-                "- Under 200 characters"
-            )
-
-            if context.get("pain_point"):
-                dm1_instruction = (
-                    f"Write the first DM after connecting.\n"
-                    f"- Address this specific pain point: {context['pain_point']}\n"
-                    f"- Ask ONE thoughtful question related to this pain point\n"
-                    f"- No selling, no links\n"
-                    f"- Under 200 characters"
-                )
-
-            # Create a single prompt that asks for all messages at once
-            prompt = f"""
-            Context:
-            {json.dumps(context, indent=2)}
-
-            Generate a complete LinkedIn outreach sequence with the following messages:
-
-            1. CONNECTION NOTE: Write a LinkedIn connection request.
-               - One sentence
-               - Light curiosity
-               - NO pitch
-               - Mention role or work only once
-               - Under 180 characters
-
-            2. DM 1: {dm1_instruction}
-
-            3. FOLLOW-UP 1: Write the first follow-up.
-               - Polite nudge
-               - Reframe the pain or curiosity
-               - Assume they are busy, not ignoring
-               - Under 180 characters
-
-            4. FOLLOW-UP 2: Write the final follow-up.
-               - Graceful exit
-               - No pressure
-               - Leave door open for later
-               - Under 180 characters
-
-            FORMAT REQUIREMENTS:
-            Respond with exactly this format:
-            [CONNECTION_NOTE_START]
-            {{connection_note_content}}
-            [CONNECTION_NOTE_END]
-
-            [DM_1_START]
-            {{dm_1_content}}
-            [DM_1_END]
-
-            [FOLLOW_UP_1_START]
-            {{follow_up_1_content}}
-            [FOLLOW_UP_1_END]
-
-            [FOLLOW_UP_2_START]
-            {{follow_up_2_content}}
-            [FOLLOW_UP_2_END]
-
-            Do not include any other text or explanations outside of the required format.
-            """
-
-            # Apply timeout protection for the single LLM call
-            try:
-                result = await llm_timeout_manager.run_with_timeout(
-                    Runner.run(agent, input=prompt, run_config=config),
-                    timeout=15  # 15-second timeout for single call (more generous than 4x8s)
-                )
-            except TimeoutError:
-                logging.warning("Timeout occurred while generating outreach sequence")
-                # Return fallback messages
+            # Check if API key is available
+            if not config:
+                # Return fallback messages if no API key is configured
+                logging.warning("No API key configured, returning fallback messages")
                 outputs = [
-                    "I wanted to connect with you.",
-                    "Hi, I noticed your work in this field.",
-                    "Following up on my previous message.",
-                    "Thanks for your time, hope to connect."
+                    "Hi, I noticed your profile and thought we might have some common interests in this field.",
+                    "I'm reaching out because I found your recent work interesting and would love to connect.",
+                    "Following up on my previous message - would appreciate your thoughts on this topic.",
+                    "Thanks for your time. Feel free to reach out if you'd like to discuss further."
                 ]
             else:
-                text = result.final_output.strip()
+                # Create a unique key for the agent configuration based on tone
+                agent_key = f"outreach_strategist_{tone.value.lower()}"
 
-                # Parse the response to extract individual messages
-                outputs = self._parse_sequence_response(text)
+                # Check if we have a cached agent for this configuration
+                if agent_key not in self.agent_cache:
+                    agent = Agent(
+                        name="LinkedIn Outreach Strategist",
+                        instructions=(
+                            "You are an expert at writing LinkedIn DMs that get replies.\n"
+                            "Your job is NOT to praise.\n"
+                            "Your job is to surface a relevant pain or tension and start a conversation.\n\n"
+                            "Rules:\n"
+                            "- Do NOT sound salesy\n"
+                            "- Do NOT over-compliment\n"
+                            "- Avoid buzzwords\n"
+                            "- Keep messages human and short\n"
+                            "- Sound like a real person who understands the reader\n"
+                            "- force single line\n"
+                            "- remove leading/trailing quotes\n"
+                            f"- Tone: {tone.value}\n"
+                            "- Generate ALL messages in a single response in the specified format\n"
+                        ),
+                    )
+                    # Cache the agent for reuse (with a reasonable size limit)
+                    if len(self.agent_cache) < 10:  # Limit cache size
+                        self.agent_cache[agent_key] = agent
+                else:
+                    agent = self.agent_cache[agent_key]
 
-                # If parsing failed, use fallback messages
-                if len(outputs) != 4:
-                    logging.warning(f"Failed to parse sequence response, using fallback messages. Response: {text}")
+                # Handle both object attributes and dictionary keys
+                profile_role = getattr(profile, 'role', None) or (profile.get('role') if isinstance(profile, dict) else None)
+                profile_company = getattr(profile, 'company', None) or (profile.get('company') if isinstance(profile, dict) else None)
+                profile_industry = getattr(profile, 'industry', None) or (profile.get('industry') if isinstance(profile, dict) else None)
+
+                if (
+                    (profile_role is None or not profile_role.strip())
+                    or ((profile_company is None or not profile_company.strip())
+                        and (profile_industry is None or not profile_industry.strip()))
+                ):
+                    raise ValueError(
+                        "Profile must have role, and either company or industry for generation."
+                    )
+
+                context = self._prepare_context_for_generation(profile, tone)
+
+                # Create a temporary sequence context
+                sequence_id = f"temp_{profile.id or ''}_{int(time.time())}"
+                sequence_context = SequenceContext(
+                    sequence_id=sequence_id,
+                    previous_messages=[],
+                    context_summary="",
+                    tone_consistency_log=[],
+                    temporary_storage=True
+                )
+
+                # Customize instructions based on whether we have a specific pain point
+                dm1_instruction = (
+                    "Write the first DM after connecting.\n"
+                    "- Acknowledge a likely pain or challenge related to their role\n"
+                    "- Ask ONE thoughtful question\n"
+                    "- No selling, no links\n"
+                    "- Under 200 characters"
+                )
+
+                if context.get("pain_point"):
+                    dm1_instruction = (
+                        f"Write the first DM after connecting.\n"
+                        f"- Address this specific pain point: {context['pain_point']}\n"
+                        f"- Ask ONE thoughtful question related to this pain point\n"
+                        f"- No selling, no links\n"
+                        f"- Under 200 characters"
+                    )
+
+                # Create a single prompt that asks for all messages at once
+                prompt = f"""
+                Context:
+                {json.dumps(context, indent=2)}
+
+                Generate a complete LinkedIn outreach sequence with the following messages:
+
+                1. CONNECTION NOTE: Write a LinkedIn connection request.
+                   - One sentence
+                   - Light curiosity
+                   - NO pitch
+                   - Mention role or work only once
+                   - Under 180 characters
+
+                2. DM 1: {dm1_instruction}
+
+                3. FOLLOW-UP 1: Write the first follow-up.
+                   - Polite nudge
+                   - Reframe the pain or curiosity
+                   - Assume they are busy, not ignoring
+                   - Under 180 characters
+
+                4. FOLLOW-UP 2: Write the final follow-up.
+                   - Graceful exit
+                   - No pressure
+                   - Leave door open for later
+                   - Under 180 characters
+
+                FORMAT REQUIREMENTS:
+                Respond with exactly this format:
+                [CONNECTION_NOTE_START]
+                {{connection_note_content}}
+                [CONNECTION_NOTE_END]
+
+                [DM_1_START]
+                {{dm_1_content}}
+                [DM_1_END]
+
+                [FOLLOW_UP_1_START]
+                {{follow_up_1_content}}
+                [FOLLOW_UP_1_END]
+
+                [FOLLOW_UP_2_START]
+                {{follow_up_2_content}}
+                [FOLLOW_UP_2_END]
+
+                Do not include any other text or explanations outside of the required format.
+                """
+
+                # Apply timeout protection for the single LLM call
+                try:
+                    result = await llm_timeout_manager.run_with_timeout(
+                        Runner.run(agent, input=prompt, run_config=config),
+                        timeout=15  # 15-second timeout for single call (more generous than 4x8s)
+                    )
+                except TimeoutError:
+                    logging.warning("Timeout occurred while generating outreach sequence")
+                    # Return fallback messages
                     outputs = [
                         "I wanted to connect with you.",
                         "Hi, I noticed your work in this field.",
                         "Following up on my previous message.",
                         "Thanks for your time, hope to connect."
                     ]
+                else:
+                    text = result.final_output.strip()
+
+                    # Parse the response to extract individual messages
+                    outputs = self._parse_sequence_response(text)
+
+                    # If parsing failed, use fallback messages
+                    if len(outputs) != 4:
+                        logging.warning(f"Failed to parse sequence response, using fallback messages. Response: {text}")
+                        outputs = [
+                            "I wanted to connect with you.",
+                            "Hi, I noticed your work in this field.",
+                            "Following up on my previous message.",
+                            "Thanks for your time, hope to connect."
+                        ]
 
             # Validate and potentially regenerate each message if needed
             validated_outputs = []
@@ -283,56 +301,53 @@ class SequenceGeneratorService:
                 if len(text) > 200:
                     text = text[:197] + "..."
 
-                # Validate the tone of the generated message
-                is_valid, violations = self.tone_validator.validate_message_tone(text, tone.value)
+                # If API key is available, validate the tone of the generated message
+                if config:
+                    is_valid, violations = self.tone_validator.validate_message_tone(text, tone.value)
 
-                # If tone validation fails, regenerate the message
-                if not is_valid:
-                    # Create a regeneration function that incorporates tone feedback
-                    def regenerate_message(original_text, requested_tone):
-                        regeneration_prompt = f"""
-                        Original message: {original_text}
+                    # If tone validation fails, regenerate the message
+                    if not is_valid:
+                        # Create a regeneration function that incorporates tone feedback
+                        def regenerate_message(original_text, requested_tone):
+                            regeneration_prompt = f"""
+                            Original message: {original_text}
 
-                        Tone validation violations: {', '.join(violations)}
+                            Tone validation violations: {', '.join(violations)}
 
-                        Please regenerate the message to better align with the {requested_tone} tone.
-                        """
-                        regeneration_result = Runner.run(agent, input=regeneration_prompt, run_config=config)
-                        regenerated_text = regeneration_result.final_output.strip()
+                            Please regenerate the message to better align with the {requested_tone} tone.
+                            """
+                            regeneration_result = Runner.run(agent, input=regeneration_prompt, run_config=config)
+                            regenerated_text = regeneration_result.final_output.strip()
 
-                        if len(regenerated_text) > 200:
-                            regenerated_text = regenerated_text[:197] + "..."
+                            if len(regenerated_text) > 200:
+                                regenerated_text = regenerated_text[:197] + "..."
 
-                        return regenerated_text
+                            return regenerated_text
 
-                    # Regenerate the message with tone considerations
-                    text, was_regenerated, new_violations = self.tone_validator.validate_and_regenerate_if_needed(
-                        text, tone.value, regenerate_message
-                    )
+                        # Regenerate the message with tone considerations
+                        text, was_regenerated, new_violations = self.tone_validator.validate_and_regenerate_if_needed(
+                            text, tone.value, regenerate_message
+                        )
 
-                    # Log the regeneration if it happened
-                    if was_regenerated:
-                        from utils.logging import log_tone_validation_result
-                        log_tone_validation_result(text, tone.value, True, True)
+                        # Log the regeneration if it happened
+                        if was_regenerated:
+                            from utils.logging import log_tone_validation_result
+                            log_tone_validation_result(text, tone.value, True, True)
 
                 validated_outputs.append(text)
 
-                # Add the generated message to the sequence context for subsequent messages
-                sequence_context.previous_messages.append({
-                    "position": i + 1,
-                    "role": ["Connection Note", "DM 1", "Follow-up 1", "Follow-up 2"][i],
-                    "content": text,
-                    "timestamp": time.time()
-                })
-
-                # Add tone validation results to the context
-                sequence_context.tone_consistency_log.append({
-                    "position": i + 1,
-                    "role": ["Connection Note", "DM 1", "Follow-up 1", "Follow-up 2"][i],
-                    "tone": tone.value,
-                    "violations": violations if not is_valid else [],
-                    "regenerated": not is_valid  # True if regeneration happened
-                })
+            # Create sequence context (even if using fallback)
+            sequence_id = f"temp_{profile.id or ''}_{int(time.time())}"
+            sequence_context = SequenceContext(
+                sequence_id=sequence_id,
+                previous_messages=[
+                    {"position": i + 1, "role": ["Connection Note", "DM 1", "Follow-up 1", "Follow-up 2"][i], "content": text, "timestamp": time.time()}
+                    for i, text in enumerate(validated_outputs)
+                ],
+                context_summary="Generated outreach sequence",
+                tone_consistency_log=[],
+                temporary_storage=True
+            )
 
             # Store the temporary context
             self._store_temporary_context(sequence_id, sequence_context)

@@ -1,17 +1,20 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import Optional, Union, Dict, Any
 from services.profile_scraper import ProfileService
 from services.context_extractor import ContextExtractor
 from models.profile import LinkedInProfile
 from database.mongo import get_db
-from typing import Optional
+from bson import ObjectId
 import logging
+import time
 
 # Import validation components
 from services.profile_validation import ProfileValidationService
-from api.profile.validators import validate_profile_for_analysis
+from api.v1.validators import validate_profile_for_analysis
 from utils.validation import create_standard_error_response
 from utils.logging import log_validation_failure, log_fallback_message_returned
+
 
 router = APIRouter()
 profile_service = ProfileService()
@@ -21,7 +24,7 @@ profile_validation_service = ProfileValidationService()
 
 class ProfileAnalysisRequest(BaseModel):
     url: str
-    role: Optional[str] = None
+    role: str  # Now required
     company: Optional[str] = None
     industry: Optional[str] = None
     recent_activity: Optional[str] = None
@@ -29,30 +32,25 @@ class ProfileAnalysisRequest(BaseModel):
 
 
 class ProfileAnalysisResponse(BaseModel):
-    id: Optional[str] = None
-    url: str
-    role: str
-    company: Optional[str] = None
-    industry: Optional[str] = None
-    recent_activity: Optional[str] = None
+    success: bool = True
+    data: Dict[str, Any]
 
 
-class ValidationErrorResponse(BaseModel):
+class ErrorResponse(BaseModel):
+    success: bool = False
     error: str
     message: str
     actionable_alternative: Optional[str] = None
 
 
-import time
-
-@router.post("/analyze",
-             response_model=ProfileAnalysisResponse,
-             responses={422: {"model": ValidationErrorResponse}})
+@router.post("/analyze", 
+             response_model=Union[ProfileAnalysisResponse, ErrorResponse],
+             responses={422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
 async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
     start_time = time.time()
 
     try:
-        # Convert request to dict for validation
+        # Convert request to dict for validation and processing
         profile_data = request.dict()
 
         # Validate profile for analysis to ensure it meets minimum requirements
@@ -65,7 +63,11 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
             if response_time > 1.0:
                 logging.warning(f"Response time exceeded 1 second: {response_time:.2f}s for validation error")
 
-            raise HTTPException(status_code=422, detail=error_response)
+            return ErrorResponse(
+                error="Validation failed",
+                message=error_response.get("message", "Profile validation failed"),
+                actionable_alternative=error_response.get("actionable_alternative")
+            )
 
         # At this point, the profile has passed validation
         # Check if we need to infer a pain point
@@ -96,22 +98,29 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
             logging.warning(f"Response time exceeded 1 second: {response_time:.2f}s for successful analysis")
 
         return ProfileAnalysisResponse(
-            id=profile.id,
-            url=profile.url,
-            role=profile.role,
-            company=profile.company,
-            industry=profile.industry,
-            recent_activity=profile.recent_activity,
+            data={
+                "id": profile.id,
+                "url": profile.url,
+                "role": profile.role,
+                "company": profile.company,
+                "industry": profile.industry,
+                "recent_activity": profile.recent_activity,
+            }
         )
 
-    except HTTPException:
-        # Re-raise HTTP exceptions (like our validation errors)
+    except HTTPException as e:
+        # Handle HTTP exceptions (like our validation errors)
         # Measure response time for HTTP exceptions
         response_time = time.time() - start_time
         if response_time > 1.0:
             logging.warning(f"Response time exceeded 1 second: {response_time:.2f}s for HTTP exception")
 
-        raise
+        return ErrorResponse(
+            error="HTTP Exception",
+            message=str(e.detail) if hasattr(e, 'detail') else "An HTTP error occurred",
+            actionable_alternative="Please check your request and try again"
+        )
+        
     except Exception as e:
         # Measure response time for general exceptions
         response_time = time.time() - start_time
@@ -119,4 +128,48 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
             logging.warning(f"Response time exceeded 1 second: {response_time:.2f}s for general exception")
 
         logging.error(f"Analyze failed: {e}")
-        raise HTTPException(status_code=500, detail="Analysis failed")
+        return ErrorResponse(
+            error="Internal server error",
+            message="Analysis failed due to an internal error",
+            actionable_alternative="Please try again later or contact support if the issue persists"
+        )
+
+
+@router.get("/{profile_id}")
+async def get_profile(profile_id: str):
+    """
+    Retrieve a profile by ID
+    """
+    try:
+        db = get_db()
+        profile_data = db.profiles.find_one({"_id": ObjectId(profile_id)})
+        
+        if not profile_data:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "Profile not found",
+                    "message": f"Profile with ID {profile_id} does not exist in the system",
+                    "actionable_alternative": "Please analyze the LinkedIn profile first using the /profile/analyze endpoint",
+                },
+            )
+        
+        # Format the response
+        profile_data["id"] = str(profile_data["_id"])
+        profile_data.pop("_id")
+        
+        return ProfileAnalysisResponse(data=profile_data)
+        
+    except HTTPException as e:
+        return ErrorResponse(
+            error="Not Found",
+            message=str(e.detail) if hasattr(e, 'detail') else "Profile not found",
+            actionable_alternative="Please check the profile ID and try again"
+        )
+    except Exception as e:
+        logging.error(f"Error retrieving profile {profile_id}: {e}")
+        return ErrorResponse(
+            error="Internal server error",
+            message="Failed to retrieve profile",
+            actionable_alternative="Please try again later or contact support if the issue persists"
+        )

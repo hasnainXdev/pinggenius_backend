@@ -105,7 +105,7 @@ As a LinkedIn outreach specialist, I want follow-up messages to maintain context
 - **FR-007**: System MUST create a generic but safe anchor based on role when neither pain_points nor recent_activity exist
 - **FR-008**: System MUST ensure all messages in a sequence reference the selected anchor (explicitly or implicitly)
 - **FR-009**: System MUST prevent topic switching within a sequence - all messages must relate to the same anchor
-- **FR-010**: System MUST enforce output hygiene: one sentence per message, ≤240 characters, no prohibited phrases
+- **FR-010**: System MUST enforce output hygiene: one sentence per message, maximum 240 characters per message, no prohibited phrases
 - **FR-011**: System MUST strip generic phrases like "intrigued by", "unique challenges", "just checking in", "gentle nudge"
 - **FR-012**: System MUST validate tone requirements (Authority, Friendly, Casual) and regenerate if violated
 - **FR-013**: System MUST inject sequence memory (selected anchor, previous outputs) into follow-up generation
@@ -124,6 +124,7 @@ As a LinkedIn outreach specialist, I want follow-up messages to maintain context
 - **AnchorPoint**: A single focal point derived from profile context that guides the entire outreach sequence
 - **ContextDepthScore**: A numerical score (0-4) representing the richness of available profile context
 - **GenerationMode**: The mode used for content generation (Precision, Safe Personalization, Exploratory) based on context depth
+- **AnalysisResult**: The result of analyzing a LinkedIn profile, including the selected anchor point, anchor type, context depth score, generation mode, and analysis details
 
 ## Success Criteria *(mandatory)*
 

@@ -63,25 +63,46 @@ api/
 ├── linkedin/
 │   ├── __init__.py
 │   ├── router.py        # LinkedIn context validation endpoints
-│   └── context_validator.py  # Context validation service
+│   └── context_validator.py  # Context validation service (optional - validation logic primarily in services/validation_engine.py)
 ├── models/
 │   ├── __init__.py
-│   ├── linkedin_profile.py    # LinkedIn profile data model
-│   ├── context_validation_result.py  # Context validation result model
-│   └── outreach_sequence.py   # Outreach sequence model
+│   ├── linkedin_profile.py         # LinkedIn profile data model
+│   ├── context_validation_result.py # Context validation result model
+│   ├── outreach_sequence.py        # Outreach sequence model
+│   ├── outreach_message.py         # Individual message model
+│   └── analysis_result.py          # Analysis result model
 ├── services/
 │   ├── __init__.py
-│   ├── context_analyzer.py    # Service for analyzing profiles and selecting anchors
-│   └── validation_engine.py   # Core validation engine
+│   ├── context_analyzer.py         # Service for analyzing profiles and selecting anchors
+│   └── validation_engine.py        # Core validation engine
 ├── database/
 │   ├── __init__.py
-│   └── mongo.py         # MongoDB connection and utilities
-└── utils/
+│   └── mongo.py                  # MongoDB connection and utilities
+├── utils/
+│   ├── __init__.py
+│   └── content_moderation.py     # Utilities for content validation
+└── tests/
     ├── __init__.py
-    └── content_moderation.py  # Utilities for content validation
+    ├── models/
+    │   ├── test_linkedin_profile.py
+    │   ├── test_context_validation_result.py
+    │   ├── test_outreach_sequence.py
+    │   ├── test_outreach_message.py
+    │   └── test_analysis_result.py
+    ├── services/
+    │   ├── test_context_analyzer.py
+    │   └── test_validation_engine.py
+    ├── utils/
+    │   └── test_content_moderation.py
+    ├── api/
+    │   └── test_linkedin_router.py
+    └── integration/
+        ├── test_context_validation_flow.py
+        ├── test_anchor_derivation_flow.py
+        └── test_complete_outreach_flow.py
 ```
 
-**Structure Decision**: Single project backend API following existing project structure with dedicated modules for LinkedIn context validation, profile modeling, and validation services.
+**Structure Decision**: Single project backend API following existing project structure with dedicated modules for LinkedIn context validation, profile modeling, and validation services. Includes comprehensive test structure following test-first development approach.
 
 ## Complexity Tracking
 
