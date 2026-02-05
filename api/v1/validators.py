@@ -12,7 +12,7 @@ class ProfileAnalysisRequest(BaseModel):
     Request model for profile analysis with validation guards.
     """
     url: str
-    role: Optional[str] = None
+    role: str  # Now required
     company: Optional[str] = None
     industry: Optional[str] = None
     recent_activity: Optional[str] = None

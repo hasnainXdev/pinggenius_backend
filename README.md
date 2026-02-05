@@ -79,19 +79,23 @@ Access the API at `http://localhost:8000`
 
 Visit `http://localhost:8000/docs` for interactive API documentation powered by Swagger UI.
 
-### Profile Analysis Endpoints
+### API v1 Endpoints (Recommended)
 
-| Endpoint           | Method | Description                |
-| ------------------ | ------ | -------------------------- |
-| `/profile/analyze` | POST   | Analyze a LinkedIn profile |
+| Endpoint                     | Method | Description                           |
+| ---------------------------- | ------ | ------------------------------------- |
+| `/api/v1/profile/analyze`    | POST   | Analyze a LinkedIn profile            |
+| `/api/v1/profile/{id}`       | GET    | Retrieve a profile by ID              |
+| `/api/v1/outreach/generate`  | POST   | Generate outreach sequence            |
+| `/api/v1/outreach/refine`    | POST   | Refine specific messages              |
+| `/api/v1/outreach/{id}`      | GET    | Retrieve existing sequence by ID      |
 
-### Outreach Generation Endpoints
+### Notes
 
-| Endpoint             | Method | Description                |
-| -------------------- | ------ | -------------------------- |
-| `/outreach/generate` | POST   | Generate outreach sequence |
-| `/outreach/refine`   | POST   | Refine specific messages   |
-| `/outreach/{id}`     | GET    | Retrieve existing sequence |
+- The API now accepts profile data directly rather than scraping LinkedIn profiles
+- All API responses follow a consistent format: `{ "success": boolean, "data": {...} }` or `{ "success": boolean, "error": string, "message": string, ... }`
+- The application no longer uses any external scrapers like Apify
+- Role field is now required for profile analysis
+- Legacy endpoints have been removed in favor of the clean API v1 structure
 
 ---
 
