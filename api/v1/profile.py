@@ -17,7 +17,7 @@ from utils.logging import log_validation_failure, log_fallback_message_returned
 
 
 router = APIRouter()
-profile_service = ProfileService()
+# profile_service = ProfileService()
 context_extractor = ContextExtractor()
 profile_validation_service = ProfileValidationService()
 
