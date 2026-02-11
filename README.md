@@ -111,11 +111,11 @@ Visit `http://localhost:8000/docs` for interactive API documentation powered by 
 
 ## Development Roadmap
 
-### 🔴 MUST-FIX (before MVP launch)
+### 🔴 MUST-FIX (before MVP launch) ✅ ALL COMPLETED
 
 **Production breakers or silent killers that block launch.**
 
-#### 1. Hard guard: empty / weak profile context
+#### 1. Hard guard: empty / weak profile context ✅ COMPLETED
 
 **Problem:** If profile fields are empty, the model fills fluff and generates hallucinated content.
 
@@ -134,7 +134,7 @@ If missing → short-circuit with human fallback copy:
 
 ---
 
-#### 2. Deterministic output safety (very important)
+#### 2. Deterministic output safety (very important) ✅ COMPLETED
 
 **Problem:** LLMs sometimes return malformed output with quotes, emojis, bullet formatting, or multiple lines.
 
@@ -148,7 +148,7 @@ If missing → short-circuit with human fallback copy:
 
 ---
 
-#### 3. Timeout / runaway protection
+#### 3. Timeout / runaway protection ✅ COMPLETED
 
 **Problem:** If Gemini hangs → your API hangs.
 
@@ -162,7 +162,7 @@ If missing → short-circuit with human fallback copy:
 
 ---
 
-#### 4. Explicit idempotency
+#### 4. Explicit idempotency ✅ COMPLETED
 
 **Problem:** If same profile + same tone is requested twice quickly, users burn credits accidentally.
 
@@ -175,11 +175,11 @@ If missing → short-circuit with human fallback copy:
 
 ---
 
-### 🟡 SHOULD-ADD (high leverage, low effort)
+### 🟡 SHOULD-ADD (high leverage, low effort) ✅ ALL COMPLETED
 
 **These multiply quality without redesign.**
 
-#### 5. Pain anchoring helper (cheap W)
+#### 5. Pain anchoring helper (cheap W) ✅ COMPLETED
 
 **Approach:** Before prompts, derive 1 inferred pain string:
 
@@ -193,7 +193,7 @@ Pass only ONE pain into context.
 
 ---
 
-#### 6. Sequence cohesion memory
+#### 6. Sequence cohesion memory ✅ COMPLETED
 
 **Current state:** Each message is generated independently.
 
@@ -206,7 +206,7 @@ Pass only ONE pain into context.
 
 ---
 
-#### 7. Tone drift protection
+#### 7. Tone drift protection ✅ COMPLETED
 
 **Problem:** Even with tone enum, models sometimes drift from intended tone.
 
