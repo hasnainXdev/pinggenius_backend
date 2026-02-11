@@ -67,6 +67,7 @@ coverage.xml
 *~
 .DS_Store
 Thumbs.db
+__pycache__*
 
 # Security
 credentials.json

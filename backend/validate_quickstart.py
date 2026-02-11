@@ -16,7 +16,7 @@ from main import app
 from api.profile.router import ProfileAnalysisRequest
 from api.outreach.router import GenerateRequest
 from services.profile_scraper import ProfileService
-from services.sequence_generator import SequenceGeneratorService, Tone
+from services.sequence_generator import SequenceGeneratorService, TONE_FRIENDLY, TONE_DIRECT, TONE_AUTHORITY, TONE_CASUAL
 from models.profile import LinkedInProfile
 
 
@@ -78,7 +78,7 @@ async def validate_sequence_generation():
 
     try:
         # This will use mock OpenAI calls since we don't have real API keys
-        sequence = await sequence_service.generate_sequence(mock_profile, Tone.FRIENDLY)
+        sequence = await sequence_service.generate_sequence(mock_profile, TONE_FRIENDLY)
         assert sequence is not None, "Sequence should be generated"
         assert (
             sequence.profile_id == mock_profile.id

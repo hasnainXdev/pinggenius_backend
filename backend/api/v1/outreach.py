@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, validator
 from typing import Optional, Union, Dict, Any
-from services.sequence_generator import SequenceGeneratorService, Tone
+from services.sequence_generator import SequenceGeneratorService, VALID_TONES, TONE_FRIENDLY
 from models.sequence import OutreachSequence
 from models.profile import LinkedInProfile
 from database.mongo import get_db
@@ -19,15 +19,58 @@ profile_validation_service = ProfileValidationService()
 
 
 class GenerateRequest(BaseModel):
+    user_id: str  # ID of the user generating the sequence
     profile_id: str
-    tone: Optional[Tone] = Tone.FRIENDLY
+    tone: Optional[str] = TONE_FRIENDLY
+    
+    @validator('tone', pre=True)
+    def validate_and_convert_tone(cls, v):
+        if isinstance(v, str):
+            # Convert to proper case for comparison
+            v_capitalized = v.capitalize() if len(v) > 0 else v
+            # Handle different input formats
+            if v.lower() == 'friendly':
+                return TONE_FRIENDLY
+            elif v.lower() == 'direct':
+                return TONE_DIRECT
+            elif v.lower() == 'authority':
+                return TONE_AUTHORITY
+            elif v.lower() == 'casual':
+                return TONE_CASUAL
+            elif v_capitalized in VALID_TONES:
+                return v_capitalized
+            else:
+                raise ValueError(f"Tone must be one of {VALID_TONES}")
+        return v
 
 
 class RefineRequest(BaseModel):
     sequence_id: str
     message_position: int  # 1-4: connection_note, dm_1, follow_up_1, follow_up_2
     feedback: Optional[str] = None
-    tone: Optional[Tone] = None
+    tone: Optional[str] = None
+    
+    @validator('tone', pre=True)
+    def validate_and_convert_refine_tone(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            # Convert to proper case for comparison
+            v_capitalized = v.capitalize() if len(v) > 0 else v
+            # Handle different input formats
+            if v.lower() == 'friendly':
+                return TONE_FRIENDLY
+            elif v.lower() == 'direct':
+                return TONE_DIRECT
+            elif v.lower() == 'authority':
+                return TONE_AUTHORITY
+            elif v.lower() == 'casual':
+                return TONE_CASUAL
+            elif v_capitalized in VALID_TONES:
+                return v_capitalized
+            else:
+                raise ValueError(f"Tone must be one of {VALID_TONES}")
+        return v
 
 
 class SequenceResponse(BaseModel):
@@ -88,6 +131,7 @@ async def generate_outreach_sequence(request: GenerateRequest):
             )
 
         # Generate the outreach sequence
+        # The tone is already validated and converted to the proper format
         sequence = await sequence_service.generate_sequence(profile, request.tone)
 
         # Store the sequence in the database
@@ -95,6 +139,7 @@ async def generate_outreach_sequence(request: GenerateRequest):
         result = db.sequences.insert_one(
             {
                 **sequence_dict,
+                "user_id": request.user_id,  # Store the user ID with the sequence
                 "profile_snapshot": {
                     "role": getattr(profile, "role", profile_data.get("role", "")),
                     "company": getattr(
@@ -230,16 +275,23 @@ async def refine_outreach_sequence(request: RefineRequest):
 @router.get("/{sequence_id}",
             response_model=Union[SequenceResponse, ErrorResponse],
             responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
-async def get_outreach_sequence(sequence_id: str):
+async def get_outreach_sequence(sequence_id: str, user_id: str = Query(None, alias="user_id")):
     """
     Retrieve an existing outreach sequence by ID
     """
     try:
         # TODO: enforce ownership after auth is added
 
-        # Fetch the sequence from the database
+        # Fetch the sequence from the database for the authenticated user
+        # TODO: Replace with actual user ID from authentication when implemented
         db = get_db()
-        sequence_data = db.sequences.find_one({"_id": ObjectId(sequence_id)})
+        # For now, checking for any sequence - in production, filter by user_id
+        query_filter = {"_id": ObjectId(sequence_id)}
+        if user_id:
+            query_filter["user_id"] = user_id
+        
+        # For now, we'll just fetch by ID, but in the future we'll check ownership
+        sequence_data = db.sequences.find_one(query_filter)
 
         if not sequence_data:
             return ErrorResponse(
@@ -276,5 +328,58 @@ async def get_outreach_sequence(sequence_id: str):
         return ErrorResponse(
             error="Internal server error",
             message="Internal server error while retrieving outreach sequence",
+            actionable_alternative="Please try again later or contact support if the issue persists"
+        )
+
+
+@router.get("/",
+            response_model=Union[SequenceResponse, ErrorResponse],
+            responses={500: {"model": ErrorResponse}})
+async def get_all_outreach_sequences(user_id: str = Query(None, alias="user_id")):
+    """
+    Retrieve all outreach sequences for a user
+    """
+    try:
+        # TODO: enforce ownership after auth is added
+
+        db = get_db()
+        query_filter = {}
+        if user_id:
+            query_filter["user_id"] = user_id
+            
+        # For now, we'll filter by user_id if provided, otherwise return all
+        # In production with proper auth, we'd get user_id from the authenticated session
+        sequences_cursor = db.sequences.find(query_filter).sort("created_at", -1)  # Sort by newest first
+        
+        sequences_list = []
+        for sequence_data in sequences_cursor:
+            sequence_item = {
+                "id": str(sequence_data["_id"]),
+                "profile_id": sequence_data["profile_id"],
+                "connection_note": sequence_data["connection_note"],
+                "dm_1": sequence_data["dm_1"],
+                "follow_up_1": sequence_data["follow_up_1"],
+                "follow_up_2": sequence_data["follow_up_2"],
+                "tone": sequence_data["tone"],
+                "created_at": (
+                    sequence_data.get("created_at").isoformat()
+                    if sequence_data.get("created_at")
+                    else None
+                ),
+                "updated_at": (
+                    sequence_data.get("updated_at").isoformat()
+                    if sequence_data.get("updated_at")
+                    else None
+                ),
+            }
+            sequences_list.append(sequence_item)
+
+        return SequenceResponse(data={"sequences": sequences_list})
+
+    except Exception as e:
+        logging.error(f"Error retrieving all outreach sequences: {e}")
+        return ErrorResponse(
+            error="Internal server error",
+            message="Internal server error while retrieving outreach sequences",
             actionable_alternative="Please try again later or contact support if the issue persists"
         )

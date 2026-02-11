@@ -28,10 +28,22 @@ class ProfileAnalysisRequest(BaseModel):
     
     @validator('tone')
     def validate_tone(cls, v):
-        valid_tones = ['FRIENDLY', 'DIRECT', 'AUTHORITY', 'CASUAL']
-        if v.upper() not in valid_tones:
-            raise ValueError(f'Tone must be one of {valid_tones}')
-        return v.upper()
+        from services.sequence_generator import TONE_FRIENDLY, TONE_DIRECT, TONE_AUTHORITY, TONE_CASUAL
+        # Handle different input formats
+        if isinstance(v, str):
+            if v.lower() == 'friendly':
+                return TONE_FRIENDLY
+            elif v.lower() == 'direct':
+                return TONE_DIRECT
+            elif v.lower() == 'authority':
+                return TONE_AUTHORITY
+            elif v.lower() == 'casual':
+                return TONE_CASUAL
+            elif v in [TONE_FRIENDLY, TONE_DIRECT, TONE_AUTHORITY, TONE_CASUAL]:
+                return v
+            else:
+                raise ValueError(f'Tone must be one of ["Friendly", "Direct", "Authority", "Casual"]')
+        return v
 
 
 def validate_profile_for_analysis(profile_data: Dict[str, Any]) -> tuple[Optional[LinkedInProfile], Optional[Dict[str, Any]]]:
@@ -60,6 +72,7 @@ def validate_profile_for_analysis(profile_data: Dict[str, Any]) -> tuple[Optiona
     
     # Create LinkedInProfile from validated data
     profile = LinkedInProfile(
+        user_id=profile_data.get('user_id', ''),  # user_id from profile_data
         url=request.url,
         role=request.role,
         company=request.company,

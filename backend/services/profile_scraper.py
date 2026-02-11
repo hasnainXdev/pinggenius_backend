@@ -39,7 +39,7 @@ class ProfileService:
                 company=profile_data.get('company', ''),
                 industry=profile_data.get('industry', ''),
                 recent_activity=profile_data.get('recent_activity'),
-                tone=profile_data.get('tone', 'FRIENDLY')
+                tone=profile_data.get('tone', 'Friendly')
             )
 
             return profile

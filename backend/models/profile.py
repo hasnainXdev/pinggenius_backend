@@ -11,6 +11,7 @@ class LinkedInProfile(BaseModel):
     """
 
     id: Optional[str] = None
+    user_id: Optional[str] = Field(None, description="ID of the user who analyzed this profile")
     url: str = Field(..., description="The original LinkedIn profile URL")
     role: str = Field(..., description="Current role of the profile owner")
     company: Optional[str] = Field(None, description="Current company of the profile owner")

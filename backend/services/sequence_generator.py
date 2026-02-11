@@ -49,11 +49,13 @@ else:
     logging.warning("Gemini API key not configured. Using fallback responses.")
 
 
-class Tone(str, Enum):
-    FRIENDLY = "Friendly"
-    DIRECT = "Direct"
-    AUTHORITY = "Authority"
-    CASUAL = "Casual"
+# Simple string constants for tone values
+TONE_FRIENDLY = "Friendly"
+TONE_DIRECT = "Direct"
+TONE_AUTHORITY = "Authority"
+TONE_CASUAL = "Casual"
+
+VALID_TONES = [TONE_FRIENDLY, TONE_DIRECT, TONE_AUTHORITY, TONE_CASUAL]
 
 
 class SequenceGeneratorService:
@@ -64,10 +66,10 @@ class SequenceGeneratorService:
     def __init__(self):
         os.environ["OPENAI_API_KEY"] = settings.openai_api_key
         self.tone_instructions = {
-            Tone.FRIENDLY: "Write in a warm, conversational tone that feels approachable and friendly.",
-            Tone.DIRECT: "Write in a clear, straightforward tone that gets to the point efficiently.",
-            Tone.AUTHORITY: "Write in a confident, expert-led tone that demonstrates knowledge and credibility.",
-            Tone.CASUAL: "Write in a relaxed, natural tone that feels informal and easy-going.",
+            TONE_FRIENDLY: "Write in a warm, conversational tone that feels approachable and friendly.",
+            TONE_DIRECT: "Write in a clear, straightforward tone that gets to the point efficiently.",
+            TONE_AUTHORITY: "Write in a confident, expert-led tone that demonstrates knowledge and credibility.",
+            TONE_CASUAL: "Write in a relaxed, natural tone that feels informal and easy-going.",
         }
         # In-memory storage for temporary sequence contexts during generation
         self.temporary_contexts = {}
@@ -123,7 +125,7 @@ class SequenceGeneratorService:
         stop_attempts=3, wait_min=1, wait_max=10, retryable_exceptions=(Exception,)
     )
     async def generate_sequence(
-        self, profile: LinkedInProfile, tone: Tone = Tone.FRIENDLY
+        self, profile: LinkedInProfile, tone: str = TONE_FRIENDLY
     ) -> OutreachSequence:
         """
         Generate a pain-first LinkedIn outreach sequence.
@@ -143,7 +145,7 @@ class SequenceGeneratorService:
                 ]
             else:
                 # Create a unique key for the agent configuration based on tone
-                agent_key = f"outreach_strategist_{tone.value.lower()}"
+                agent_key = f"outreach_strategist_{tone.lower()}"
 
                 # Check if we have a cached agent for this configuration
                 if agent_key not in self.agent_cache:
@@ -161,7 +163,7 @@ class SequenceGeneratorService:
                             "- Sound like a real person who understands the reader\n"
                             "- force single line\n"
                             "- remove leading/trailing quotes\n"
-                            f"- Tone: {tone.value}\n"
+                            f"- Tone: {tone}\n"
                             "- Generate ALL messages in a single response in the specified format\n"
                         ),
                     )
@@ -303,7 +305,7 @@ class SequenceGeneratorService:
 
                 # If API key is available, validate the tone of the generated message
                 if config:
-                    is_valid, violations = self.tone_validator.validate_message_tone(text, tone.value)
+                    is_valid, violations = self.tone_validator.validate_message_tone(text, tone)
 
                     # If tone validation fails, regenerate the message
                     if not is_valid:
@@ -326,13 +328,13 @@ class SequenceGeneratorService:
 
                         # Regenerate the message with tone considerations
                         text, was_regenerated, new_violations = self.tone_validator.validate_and_regenerate_if_needed(
-                            text, tone.value, regenerate_message
+                            text, tone, regenerate_message
                         )
 
                         # Log the regeneration if it happened
                         if was_regenerated:
                             from utils.logging import log_tone_validation_result
-                            log_tone_validation_result(text, tone.value, True, True)
+                            log_tone_validation_result(text, tone, True, True)
 
                 validated_outputs.append(text)
 
@@ -353,12 +355,13 @@ class SequenceGeneratorService:
             self._store_temporary_context(sequence_id, sequence_context)
 
             return OutreachSequence(
+                user_id=profile.user_id or "",  # Pass the user_id from the profile
                 profile_id=profile.id or "",
                 connection_note=validated_outputs[0],
                 dm_1=validated_outputs[1],
                 follow_up_1=validated_outputs[2],
                 follow_up_2=validated_outputs[3],
-                tone=tone.value,
+                tone=tone,
                 sequence_context=sequence_context.dict()
             )
 
@@ -397,7 +400,7 @@ class SequenceGeneratorService:
         return outputs
 
     def _prepare_context_for_generation(
-        self, profile: LinkedInProfile, tone: Tone
+        self, profile: LinkedInProfile, tone: str
     ) -> Dict[str, Any]:
         """
         Prepare context for message generation
@@ -417,7 +420,7 @@ class SequenceGeneratorService:
             "recent_activity": profile_recent_activity or "",
             "pain_point": profile_pain_point or "",
             "tone_instruction": self.tone_instructions.get(
-                tone, self.tone_instructions[Tone.FRIENDLY]
+                tone, self.tone_instructions[TONE_FRIENDLY]
             ),
             "profile_url": profile_url,
         }
@@ -427,7 +430,7 @@ class SequenceGeneratorService:
         sequence: OutreachSequence,
         message_position: int,
         feedback: Optional[str] = None,
-        tone: Optional[Tone] = None,
+        tone: Optional[str] = None,
     ) -> OutreachSequence:
         """
         Refine a specific message in an existing sequence based on feedback using OpenAI Agents
@@ -451,7 +454,7 @@ class SequenceGeneratorService:
 
             # Prepare context
             context = self._prepare_context_for_generation(
-                profile, tone or Tone(sequence.tone)
+                profile, tone or sequence.tone
             )
 
             # Add feedback to context if provided
@@ -461,7 +464,7 @@ class SequenceGeneratorService:
             # Create an agent for refining messages
             agent = Agent(
                 name="LinkedIn Outreach Refinement Specialist",
-                instructions=f"Refine a LinkedIn outreach message with a {tone.value if tone else sequence.tone} tone based on feedback. You are an expert at refining LinkedIn outreach messages based on user feedback while maintaining consistency with the overall sequence.",
+                instructions=f"Refine a LinkedIn outreach message with a {tone if tone else sequence.tone} tone based on feedback. You are an expert at refining LinkedIn outreach messages based on user feedback while maintaining consistency with the overall sequence.",
             )
 
             # Determine which message to refine
@@ -505,7 +508,7 @@ class SequenceGeneratorService:
             Previous messages in the sequence (for context and cohesion):
             {json.dumps(temp_context.previous_messages if temp_context else [], indent=2)}
 
-            Tone: {self.tone_instructions[tone or Tone(sequence.tone)]}
+            Tone: {self.tone_instructions[tone or sequence.tone]}
 
             Keep it under 200 characters.
             """
@@ -519,7 +522,7 @@ class SequenceGeneratorService:
                 refined_message = refined_message[:197] + "..."
 
             # Validate the tone of the refined message
-            target_tone = tone.value if tone else sequence.tone
+            target_tone = tone if tone else sequence.tone
             is_valid, violations = self.tone_validator.validate_message_tone(refined_message, target_tone)
 
             # Update the specific message in the sequence

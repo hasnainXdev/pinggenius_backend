@@ -35,6 +35,7 @@ class OutreachSequence(BaseModel):
     """
 
     id: Optional[str] = None
+    user_id: Optional[str] = None  # ID of the user who generated this sequence
     profile_id: str  # Reference to the associated LinkedInProfile
     connection_note: str  # The connection request message
     dm_1: str  # First direct message

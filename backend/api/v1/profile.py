@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional, Union, Dict, Any
 from services.profile_scraper import ProfileService
 from services.context_extractor import ContextExtractor
@@ -8,12 +8,15 @@ from database.mongo import get_db
 from bson import ObjectId
 import logging
 import time
+import re
 
 # Import validation components
 from services.profile_validation import ProfileValidationService
 from api.v1.validators import validate_profile_for_analysis
 from utils.validation import create_standard_error_response
 from utils.logging import log_validation_failure, log_fallback_message_returned
+from services.sequence_generator import TONE_FRIENDLY
+from utils.user_friendly_errors import get_user_friendly_error
 
 
 router = APIRouter()
@@ -23,12 +26,30 @@ profile_validation_service = ProfileValidationService()
 
 
 class ProfileAnalysisRequest(BaseModel):
+    user_id: str  # ID of the user performing the analysis
     url: str
     role: str  # Now required
     company: Optional[str] = None
     industry: Optional[str] = None
     recent_activity: Optional[str] = None
-    tone: str = "FRIENDLY"
+    tone: str = "friendly"
+    
+    @validator('tone', pre=True)
+    def validate_and_convert_profile_tone(cls, v):
+        from services.sequence_generator import TONE_DIRECT, TONE_AUTHORITY, TONE_CASUAL
+        if isinstance(v, str):
+            # Handle different input formats
+            if v.lower() == 'friendly':
+                return TONE_FRIENDLY
+            elif v.lower() == 'direct':
+                return TONE_DIRECT
+            elif v.lower() == 'authority':
+                return TONE_AUTHORITY
+            elif v.lower() == 'casual':
+                return TONE_CASUAL
+            else:
+                raise ValueError(f"Tone must be one of ['friendly', 'direct', 'authority', 'casual']")
+        return v
 
 
 class ProfileAnalysisResponse(BaseModel):
@@ -87,6 +108,7 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
         db = get_db()
         result = db.profiles.insert_one({
             **profile.dict(),
+            "user_id": request.user_id,  # Store the user ID with the profile
             "context": context,
         })
 
@@ -127,11 +149,17 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
         if response_time > 1.0:
             logging.warning(f"Response time exceeded 1 second: {response_time:.2f}s for general exception")
 
+        # Get user-friendly error message
+        error_msg = str(e)
+        friendly_msg, actionable_tip = get_user_friendly_error(error_msg)
+        
+        # Log the original error for debugging purposes
         logging.error(f"Analyze failed: {e}")
+        
         return ErrorResponse(
-            error="Internal server error",
-            message="Analysis failed due to an internal error",
-            actionable_alternative="Please try again later or contact support if the issue persists"
+            error="Error occurred",
+            message=friendly_msg,
+            actionable_alternative=actionable_tip
         )
 
 
