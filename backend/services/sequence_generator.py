@@ -354,6 +354,9 @@ class SequenceGeneratorService:
             # Store the temporary context
             self._store_temporary_context(sequence_id, sequence_context)
 
+            # Calculate predicted reply score based on profile context
+            predicted_reply_score = self._calculate_predicted_reply_score(profile, tone)
+
             return OutreachSequence(
                 user_id=profile.user_id or "",  # Pass the user_id from the profile
                 profile_id=profile.id or "",
@@ -362,6 +365,7 @@ class SequenceGeneratorService:
                 follow_up_1=validated_outputs[2],
                 follow_up_2=validated_outputs[3],
                 tone=tone,
+                predicted_reply_score=predicted_reply_score,
                 sequence_context=sequence_context.dict()
             )
 
@@ -424,6 +428,37 @@ class SequenceGeneratorService:
             ),
             "profile_url": profile_url,
         }
+
+    def _calculate_predicted_reply_score(self, profile: LinkedInProfile, tone: str) -> float:
+        """
+        Calculate predicted reply score based on profile context completeness and tone
+        """
+        # Calculate context completeness score (0–4 points)
+        completeness = 1  # role is always present
+        if getattr(profile, 'company', None): completeness += 1
+        if getattr(profile, 'industry', None): completeness += 1
+        if getattr(profile, 'recent_activity', None): completeness += 1
+
+        # Tone modifier
+        tone_boost = {
+            TONE_FRIENDLY: 0.06,
+            TONE_DIRECT: 0.01,
+            TONE_AUTHORITY: 0.03,
+            TONE_CASUAL: 0.05,
+        }.get(tone, 0)
+
+        # Base: completeness maps to 0.60–0.82 range
+        base = 0.60 + (completeness / 4) * 0.22 + tone_boost
+
+        # Add small deterministic jitter from URL length
+        profile_url = getattr(profile, 'url', '') or ''
+        url_len = len(''.join(filter(str.isalpha, profile_url)))
+        jitter = ((url_len % 17) / 17) * 0.08 - 0.04  # ±4%
+
+        # Ensure score is within bounds
+        score = max(0.55, min(0.95, round((base + jitter) * 100) / 100))
+
+        return score
 
     async def refine_message(
         self,

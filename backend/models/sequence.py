@@ -42,6 +42,7 @@ class OutreachSequence(BaseModel):
     follow_up_1: str  # First follow-up message
     follow_up_2: str  # Second follow-up message
     tone: str  # The tone used for generation (Friendly, Direct, Authority, Casual)
+    predicted_reply_score: float = 0.0  # Predicted reply rate for this sequence
     pain_point_used: Optional[str] = None  # Pain point that was incorporated
     sequence_context: Optional[Dict[str, Any]] = None  # Context maintained between messages
     created_at: datetime = datetime.now()

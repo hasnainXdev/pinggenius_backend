@@ -168,6 +168,7 @@ async def generate_outreach_sequence(request: GenerateRequest):
             "follow_up_1": sequence.follow_up_1,
             "follow_up_2": sequence.follow_up_2,
             "tone": sequence.tone,
+            "predicted_reply_score": sequence.predicted_reply_score,
             "created_at": sequence.created_at.isoformat(),
             "updated_at": sequence.updated_at.isoformat(),
         }
@@ -253,6 +254,7 @@ async def refine_outreach_sequence(request: RefineRequest):
             "follow_up_1": refined_sequence.follow_up_1,
             "follow_up_2": refined_sequence.follow_up_2,
             "tone": refined_sequence.tone,
+            "predicted_reply_score": sequence_data.get("predicted_reply_score", 0.0),  # Keep original score
             "created_at": (
                 sequence_data.get("created_at").isoformat()
                 if sequence_data.get("created_at")
@@ -309,6 +311,7 @@ async def get_outreach_sequence(sequence_id: str, user_id: str = Query(None, ali
             "follow_up_1": sequence_data["follow_up_1"],
             "follow_up_2": sequence_data["follow_up_2"],
             "tone": sequence_data["tone"],
+            "predicted_reply_score": sequence_data.get("predicted_reply_score", 0.0),
             "created_at": (
                 sequence_data.get("created_at").isoformat()
                 if sequence_data.get("created_at")
@@ -361,6 +364,7 @@ async def get_all_outreach_sequences(user_id: str = Query(None, alias="user_id")
                 "follow_up_1": sequence_data["follow_up_1"],
                 "follow_up_2": sequence_data["follow_up_2"],
                 "tone": sequence_data["tone"],
+                "predicted_reply_score": sequence_data.get("predicted_reply_score", 0.0),
                 "created_at": (
                     sequence_data.get("created_at").isoformat()
                     if sequence_data.get("created_at")
@@ -383,3 +387,5 @@ async def get_all_outreach_sequences(user_id: str = Query(None, alias="user_id")
             message="Internal server error while retrieving outreach sequences",
             actionable_alternative="Please try again later or contact support if the issue persists"
         )
+
+
