@@ -41,7 +41,7 @@ Alhumdulillah for the grind.
 ## 🛠 Technical Features
 
 - FastAPI (async + production ready)
-- LangGraph for reliable agent state management
+- OpenAI Python Agents SDK for reliable agent state management
 - MongoDB for persistence
 - Full authentication & rate limiting
 - Swagger/OpenAPI docs
