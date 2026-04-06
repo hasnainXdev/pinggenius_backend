@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
     add_error_handlers(app)
 
     # Include API v1 routers with consistent response format
-    app.include_router(api_v1_router, prefix="/api/v1", tags=["api-v1"])
+    app.include_router(api_v1_router)
 
     @app.get("/")
     def read_root():
