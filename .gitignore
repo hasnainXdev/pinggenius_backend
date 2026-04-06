@@ -1,8 +1,4 @@
-.qwen
-.specify
-history
 .env*
-QWEN.md
 
 # Python
 *.pyc
