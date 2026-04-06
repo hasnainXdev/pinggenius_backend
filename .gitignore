@@ -1,0 +1,14 @@
+.qwen
+.specify
+history
+.env*
+QWEN.md
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Init files (optional - usually you want to track these)
+# __init__.py
