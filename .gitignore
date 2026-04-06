@@ -9,6 +9,3 @@ QWEN.md
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Init files (optional - usually you want to track these)
-# __init__.py
