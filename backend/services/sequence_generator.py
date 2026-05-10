@@ -1,6 +1,5 @@
 from models.sequence import OutreachSequence
 from models.profile import LinkedInProfile
-from models.validation import ToneValidatorConfiguration
 from typing import Optional, List, Dict, Any
 from agents import (
     Agent,
@@ -283,8 +282,8 @@ class SequenceGeneratorService:
         tone: Optional[str] = None,
     ) -> OutreachSequence:
         try:
-            db = get_db()
-            profile_data = db.profiles.find_one({"_id": sequence.profile_id})
+            db = await get_db()
+            profile_data = await db.profiles.find_one({"_id": sequence.profile_id})
             profile = LinkedInProfile(
                 id=sequence.profile_id,
                 url=profile_data.get("url", ""),

@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -51,16 +50,6 @@ def add_error_handlers(app: FastAPI):
         )
 
 
-def add_middleware(app: FastAPI):
-    """Add middleware to the application"""
-    # CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],  # In production, specify allowed origins
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 
 def log_validation_failure(profile_data: dict, validation_errors: list):

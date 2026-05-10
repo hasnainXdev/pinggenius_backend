@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, validator
 from typing import Optional, Union, Dict, Any
-from services.profile_scraper import ProfileService
 from services.context_extractor import ContextExtractor
 from models.profile import LinkedInProfile
 from database.mongo import get_db
@@ -105,8 +104,8 @@ async def analyze_linkedin_profile(request: ProfileAnalysisRequest):
             logging.warning("Insufficient context but proceeding")
 
         # Save the profile to the database
-        db = get_db()
-        result = db.profiles.insert_one({
+        db = await get_db()
+        result = await db.profiles.insert_one({
             **profile.dict(),
             "user_id": request.user_id,  # Store the user ID with the profile
             "context": context,
@@ -169,8 +168,8 @@ async def get_profile(profile_id: str):
     Retrieve a profile by ID
     """
     try:
-        db = get_db()
-        profile_data = db.profiles.find_one({"_id": ObjectId(profile_id)})
+        db = await get_db()
+        profile_data = await db.profiles.find_one({"_id": ObjectId(profile_id)})
         
         if not profile_data:
             raise HTTPException(

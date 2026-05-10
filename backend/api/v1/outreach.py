@@ -94,8 +94,8 @@ async def generate_outreach_sequence(request: GenerateRequest):
     """
     try:
         # Fetch the profile from the database
-        db = get_db()
-        profile_data = db.profiles.find_one({"_id": ObjectId(request.profile_id)})
+        db = await get_db()
+        profile_data = await db.profiles.find_one({"_id": ObjectId(request.profile_id)})
 
         if not profile_data:
             return ErrorResponse(
@@ -136,7 +136,7 @@ async def generate_outreach_sequence(request: GenerateRequest):
 
         # Store the sequence in the database
         sequence_dict = sequence.dict()
-        result = db.sequences.insert_one(
+        result = await db.sequences.insert_one(
             {
                 **sequence_dict,
                 "user_id": request.user_id,  # Store the user ID with the sequence
@@ -187,8 +187,8 @@ async def refine_outreach_sequence(request: RefineRequest):
     """
     try:
         # Fetch the sequence from the database
-        db = get_db()
-        sequence_data = db.sequences.find_one({"_id": ObjectId(request.sequence_id)})
+        db = await get_db()
+        sequence_data = await db.sequences.find_one({"_id": ObjectId(request.sequence_id)})
 
         if not sequence_data:
             return ErrorResponse(
@@ -201,7 +201,7 @@ async def refine_outreach_sequence(request: RefineRequest):
         sequence = OutreachSequence(**sequence_data)
 
         # Fetch the profile for context
-        profile_data = db.profiles.find_one({"_id": sequence.profile_id})
+        profile_data = await db.profiles.find_one({"_id": sequence.profile_id})
         if not profile_data:
             return ErrorResponse(
                 error="Profile not found",
@@ -224,7 +224,7 @@ async def refine_outreach_sequence(request: RefineRequest):
         )
 
         # Update the sequence in the database
-        db.sequences.update_one(
+        await db.sequences.update_one(
             {"_id": request.sequence_id},
             {
                 "$set": {
@@ -280,14 +280,14 @@ async def get_outreach_sequence(sequence_id: str, user_id: str = Query(None, ali
 
         # Fetch the sequence from the database for the authenticated user
         # TODO: Replace with actual user ID from authentication when implemented
-        db = get_db()
+        db = await get_db()
         # For now, checking for any sequence - in production, filter by user_id
         query_filter = {"_id": ObjectId(sequence_id)}
         if user_id:
             query_filter["user_id"] = user_id
         
         # For now, we'll just fetch by ID, but in the future we'll check ownership
-        sequence_data = db.sequences.find_one(query_filter)
+        sequence_data = await db.sequences.find_one(query_filter)
 
         if not sequence_data:
             return ErrorResponse(
@@ -338,17 +338,15 @@ async def get_all_outreach_sequences(user_id: str = Query(None, alias="user_id")
     """
     try:
 
-        db = get_db()
+        db = await get_db()
         query_filter = {}
         if user_id:
             query_filter["user_id"] = user_id
             
-        # For now, we'll filter by user_id if provided, otherwise return all
-        # In production with proper auth, we'd get user_id from the authenticated session
-        sequences_cursor = db.sequences.find(query_filter).sort("created_at", -1)  # Sort by newest first
+        sequences_cursor = db.sequences.find(query_filter).sort("created_at", -1)
         
         sequences_list = []
-        for sequence_data in sequences_cursor:
+        async for sequence_data in sequences_cursor:
             sequence_item = {
                 "id": str(sequence_data["_id"]),
                 "profile_id": sequence_data["profile_id"],

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.v1.router import api_v1_router
 from config.settings import settings
-from utils.logging import setup_logging, add_error_handlers, add_middleware
+from utils.logging import setup_logging, add_error_handlers
 from utils.rate_limiting import add_rate_limiting_middleware
 
 
@@ -30,9 +30,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Add middleware
-    add_middleware(app)
 
     # Add rate limiting middleware
     add_rate_limiting_middleware(app)
