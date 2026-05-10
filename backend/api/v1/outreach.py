@@ -153,12 +153,6 @@ async def generate_outreach_sequence(request: GenerateRequest):
         )
         sequence.id = str(result.inserted_id)
 
-        # Persist the sequence context if it's valuable
-        if sequence_dict.get("sequence_context"):
-            sequence_service.persist_sequence_context(
-                sequence.id, {"_id": result.inserted_id, **sequence_dict}
-            )
-
         # Prepare the response
         response_data = {
             "id": sequence.id,

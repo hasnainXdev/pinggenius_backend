@@ -38,18 +38,6 @@ class PainPoint(BaseModel):
     effectiveness_score: Optional[float] = Field(None, description="Historical effectiveness score")
 
 
-class SequenceContext(BaseModel):
-    """
-    Information about previous messages in a sequence that informs the generation of subsequent messages,
-    stored temporarily during generation with option to persist valuable sequences permanently.
-    """
-    sequence_id: Optional[str] = Field(None, description="ID if sequence is persisted")
-    previous_messages: List[Dict] = Field(default_factory=list, description="List of previous messages in the sequence")
-    context_summary: str = Field("", description="Summary of the conversation context")
-    tone_consistency_log: List[Dict] = Field(default_factory=list, description="Log of tone validation results")
-    temporary_storage: bool = Field(True, description="Whether this context is in temporary storage")
-
-
 class ToneValidatorConfiguration(BaseModel):
     """
     Configuration for validating that generated messages adhere to requested tone parameters using prescriptive rules.

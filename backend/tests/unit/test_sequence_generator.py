@@ -1,6 +1,6 @@
 import pytest
 from models.profile import LinkedInProfile
-from models.sequence import OutreachSequence, SequenceContext
+from models.sequence import OutreachSequence
 from services.sequence_generator import SequenceGeneratorService, Tone
 from unittest.mock import AsyncMock, MagicMock
 
